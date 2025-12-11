@@ -5,6 +5,12 @@ import { compare } from "bcryptjs";
 import { z } from "zod";
 import { prisma } from "./prisma";
 
+const authSecret = process.env.AUTH_SECRET ?? process.env.NEXTAUTH_SECRET;
+
+if (!authSecret) {
+  console.error("Auth secret is not set. Define AUTH_SECRET or NEXTAUTH_SECRET in your environment.");
+}
+
 const credentialsSchema = z.object({
   identifier: z.string().min(1, "Username or email is required"),
   password: z.string().min(1, "Password is required"),
@@ -16,7 +22,7 @@ export const authConfig = {
     strategy: "jwt" as const,
   },
   trustHost: true,
-  secret: process.env.NEXTAUTH_SECRET,
+  secret: authSecret,
   providers: [
     Credentials({
       name: "Credentials",

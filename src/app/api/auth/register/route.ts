@@ -61,7 +61,8 @@ export async function POST(request: Request) {
       },
     });
 
-    const verifyUrl = `${process.env.NEXTAUTH_URL ?? "http://localhost:3000"}/auth/verify?token=${token}`;
+    const baseUrl = process.env.AUTH_URL ?? process.env.NEXTAUTH_URL ?? "http://localhost:3000";
+    const verifyUrl = `${baseUrl}/auth/verify?token=${token}`;
     await sendEmail({
       to: user.email,
       subject: "Verify your Checkmate account",
