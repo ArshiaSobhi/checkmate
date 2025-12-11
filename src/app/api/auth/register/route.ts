@@ -7,6 +7,10 @@ import { signupSchema } from "@/lib/validators";
 
 export async function POST(request: Request) {
   try {
+    if (!process.env.DATABASE_URL) {
+      return NextResponse.json({ error: "Database is not configured (DATABASE_URL missing)." }, { status: 500 });
+    }
+
     const ip = request.headers.get("x-forwarded-for") ?? "unknown";
     if (!rateLimit(`register:${ip}`, 10, 60_000)) {
       return NextResponse.json({ error: "Too many attempts. Please wait." }, { status: 429 });
@@ -73,8 +77,14 @@ export async function POST(request: Request) {
   } catch (error) {
     console.error("Register error", error);
     return NextResponse.json(
-      { error: "Unable to create account. Check database connection and env configuration." },
+      {
+        error: "Unable to create account. Check database connection and env configuration.",
+        detail: error instanceof Error ? error.message : "Unknown error",
+      },
       { status: 500 },
     );
   }
 }
+
+// Ensure Node runtime for Prisma/NextAuth on Vercel
+export const runtime = "nodejs";
