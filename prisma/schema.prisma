@@ -1,0 +1,292 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  USER
+  ADMIN
+}
+
+enum Rank {
+  BRONZE
+  SILVER
+  GOLD
+  PLATINUM
+  DIAMOND
+  GRANDMASTER
+}
+
+enum GameMode {
+  RANKED
+  CASUAL
+  FRIEND
+}
+
+enum GameStatus {
+  QUEUED
+  ONGOING
+  FINISHED
+  ABORTED
+}
+
+enum GameResult {
+  WHITE_WIN
+  BLACK_WIN
+  DRAW
+  ABORTED
+}
+
+enum InviteStatus {
+  PENDING
+  ACCEPTED
+  DECLINED
+  EXPIRED
+}
+
+enum FriendRequestStatus {
+  PENDING
+  ACCEPTED
+  DECLINED
+}
+
+enum NotificationType {
+  FRIEND_REQUEST
+  FRIEND_ACCEPT
+  GAME_INVITE
+  MATCH_FOUND
+  RANK_UP
+  RANK_DOWN
+}
+
+enum QueueStatus {
+  WAITING
+  MATCHED
+  CANCELLED
+}
+
+enum PresenceStatus {
+  ONLINE
+  IN_GAME
+  OFFLINE
+}
+
+model User {
+  id              String             @id @default(cuid())
+  email           String             @unique
+  username        String             @unique
+  name            String?
+  password        String?
+  emailVerified   DateTime?
+  role            Role               @default(USER)
+  rank            Rank               @default(BRONZE)
+  rankPoints      Int                @default(0)
+  bestRank        Rank?
+  presence        PresenceStatus     @default(OFFLINE)
+  avatar          String             @default("avatar-1")
+  disabled        Boolean            @default(false)
+  createdAt       DateTime           @default(now())
+  updatedAt       DateTime           @updatedAt
+  settings        UserSettings?
+  gamesWhite      Game[]             @relation("whitePlayer")
+  gamesBlack      Game[]             @relation("blackPlayer")
+  friendRequests  FriendRequest[]    @relation("requestReceiver")
+  sentRequests    FriendRequest[]    @relation("requestSender")
+  friendshipsA    Friendship[]       @relation("userA")
+  friendshipsB    Friendship[]       @relation("userB")
+  notifications   Notification[]
+  invitesSent     GameInvite[]       @relation("inviteSender")
+  invitesReceived GameInvite[]       @relation("inviteReceiver")
+  queueEntries    MatchQueue[]
+  rankHistory     RankHistory[]
+  resetTokens     PasswordResetToken[]
+  sessions        Session[]
+  accounts        Account[]
+}
+
+model UserSettings {
+  id                     String   @id @default(cuid())
+  user                   User     @relation(fields: [userId], references: [id])
+  userId                 String   @unique
+  boardTheme             String   @default("classic")
+  pieceSet               String   @default("neo")
+  animationsEnabled      Boolean  @default(true)
+  soundsEnabled          Boolean  @default(true)
+  showCoordinates        Boolean  @default(true)
+  moveConfirmation       Boolean  @default(false)
+  allowFriendRequests    Boolean  @default(true)
+  discoverable           Boolean  @default(true)
+  showOnlineStatus       Boolean  @default(true)
+  inAppNotifications     Boolean  @default(true)
+  emailNotifications     Boolean  @default(false)
+  language               String   @default("en")
+  timezone               String   @default("UTC")
+  onboardingCompleted    Boolean  @default(false)
+  tourCompleted          Boolean  @default(false)
+  defaultTheme           String   @default("dark")
+  createdAt              DateTime @default(now())
+  updatedAt              DateTime @updatedAt
+}
+
+model Game {
+  id                 String     @id @default(cuid())
+  white              User       @relation("whitePlayer", fields: [whiteId], references: [id])
+  whiteId            String
+  black              User       @relation("blackPlayer", fields: [blackId], references: [id])
+  blackId            String
+  mode               GameMode   @default(CASUAL)
+  status             GameStatus @default(QUEUED)
+  result             GameResult?
+  timeControl        String
+  clockWhiteMs       Int
+  clockBlackMs       Int
+  incrementMs        Int        @default(0)
+  rated              Boolean    @default(false)
+  winnerId           String?
+  pgn                String?
+  lastMoveAt         DateTime?
+  startedAt          DateTime?  @default(now())
+  endedAt            DateTime?
+  rankDeltaWhite     Int        @default(0)
+  rankDeltaBlack     Int        @default(0)
+  drawOfferedBy      String?
+  moves              GameMove[]
+  invites            GameInvite[]  @relation("game_invites")
+  queueEntries       MatchQueue[] @relation("queue_game")
+  createdAt          DateTime   @default(now())
+  updatedAt          DateTime   @updatedAt
+}
+
+model GameMove {
+  id        String   @id @default(cuid())
+  game      Game     @relation(fields: [gameId], references: [id])
+  gameId    String
+  moveIndex Int
+  san       String
+  fen       String
+  createdAt DateTime @default(now())
+
+  @@unique([gameId, moveIndex])
+}
+
+model FriendRequest {
+  id         String               @id @default(cuid())
+  from       User                 @relation("requestSender", fields: [fromUserId], references: [id])
+  fromUserId String
+  to         User                 @relation("requestReceiver", fields: [toUserId], references: [id])
+  toUserId   String
+  status     FriendRequestStatus  @default(PENDING)
+  createdAt  DateTime             @default(now())
+
+  @@unique([fromUserId, toUserId])
+}
+
+model Friendship {
+  id        String   @id @default(cuid())
+  userA     User     @relation("userA", fields: [userAId], references: [id])
+  userAId   String
+  userB     User     @relation("userB", fields: [userBId], references: [id])
+  userBId   String
+  createdAt DateTime @default(now())
+
+  @@unique([userAId, userBId])
+}
+
+model Notification {
+  id        String           @id @default(cuid())
+  user      User             @relation(fields: [userId], references: [id])
+  userId    String
+  type      NotificationType
+  data      Json
+  read      Boolean          @default(false)
+  createdAt DateTime         @default(now())
+}
+
+model GameInvite {
+  id           String        @id @default(cuid())
+  from         User          @relation("inviteSender", fields: [fromUserId], references: [id])
+  fromUserId   String
+  to           User          @relation("inviteReceiver", fields: [toUserId], references: [id])
+  toUserId     String
+  mode         GameMode      @default(CASUAL)
+  timeControl  String
+  status       InviteStatus  @default(PENDING)
+  expiresAt    DateTime
+  game         Game?         @relation("game_invites", fields: [gameId], references: [id])
+  gameId       String?
+  createdAt    DateTime      @default(now())
+}
+
+model MatchQueue {
+  id          String      @id @default(cuid())
+  user        User        @relation(fields: [userId], references: [id])
+  userId      String
+  mode        GameMode
+  timeControl String
+  status      QueueStatus @default(WAITING)
+  game        Game?       @relation("queue_game", fields: [gameId], references: [id])
+  gameId      String?
+  createdAt   DateTime    @default(now())
+
+  @@unique([userId, mode, status])
+}
+
+model RankHistory {
+  id        String   @id @default(cuid())
+  user      User     @relation(fields: [userId], references: [id])
+  userId    String
+  rank      Rank
+  points    Int
+  change    Int
+  reason    String
+  createdAt DateTime @default(now())
+}
+
+model PasswordResetToken {
+  id        String   @id @default(cuid())
+  token     String   @unique
+  user      User     @relation(fields: [userId], references: [id])
+  userId    String
+  expiresAt DateTime
+  used      Boolean  @default(false)
+  createdAt DateTime @default(now())
+}
+
+model Account {
+  id                 String  @id @default(cuid())
+  userId             String
+  type               String
+  provider           String
+  providerAccountId  String
+  refresh_token      String?
+  access_token       String?
+  expires_at         Int?
+  token_type         String?
+  scope              String?
+  id_token           String?
+  session_state      String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
+}
